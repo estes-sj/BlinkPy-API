@@ -1,0 +1,17 @@
+services:
+  blink-api:
+    build: .
+    container_name: blink-api
+    restart: unless-stopped
+    environment:
+      # Set if you want a different look-back window (in hours)
+      #- TIMEDELTA=6
+      - TZ=America/New_York
+    volumes:
+      # Credentials file
+      - ./credentials.json:/app/credentials.json
+      # Snapshots and videos
+      - ./media:/app/media
+      - /mnt/plex/media/blink:/app/media
+    ports:
+      - "5001:5001"
