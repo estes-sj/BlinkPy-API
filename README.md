@@ -127,9 +127,9 @@ Trigger a snapshot and get the URL of the saved image.
   { "url": "https://static.example.com/Front Door/last.jpg" }
   ```
 
-#### POST `/download-recent-clips`
+#### POST `/download-recent-clips` and `/download-recent-clips-and-sort`
 
-Download clips from all or specified cameras since the last run.
+Download clips from all or specified cameras since the last run. The `/download-recent-clips-and-sort` version sorts by year, month, and date using subholders. Additionally, the `path/to/media/latest` folder is updated with the most recent 20 videos.
 
 * **Payload** (optional)
 
@@ -153,7 +153,7 @@ Download clips from all or specified cameras since the last run.
 
 #### POST `/download-clips-since`
 
-Download clips from all or specified cameras since a given ISO timestamp.
+Download clips from all or specified cameras since a given ISO timestamp. The `/download-clips-since-and-sort` version sorts by year, month, and date using subholders. Additionally, the `path/to/media/latest` folder is updated with the most recent 20 videos.
 
 * **Payload**
 
