@@ -1,6 +1,6 @@
 from flask import abort
 from datetime import datetime, timezone
-from .config import TIMEDELTA
+from .config import Config
 
 def get_since_iso() -> str:
     """
@@ -13,7 +13,7 @@ def get_since_iso() -> str:
         str: An ISO-formatted timestamp (e.g. "2025-07-01T12:34:56.789012+00:00").
     """
     now_utc = datetime.now(timezone.utc)
-    return (now_utc - TIMEDELTA).isoformat()
+    return (now_utc - Config.TIMEDELTA).isoformat()
 
 def normalize_camera_names(cams):
     """

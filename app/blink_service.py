@@ -1,12 +1,14 @@
 import asyncio
 from aiohttp import ClientSession
 from pathlib import Path
-from .config import CREDFILE, MEDIA_DIR, LAST_IMAGE_FILENAME
+from .config import Config
 from .helpers import get_since_iso
 from blinkpy.blinkpy import Blink
 from blinkpy.auth import Auth
 from blinkpy.helpers.util import json_load
 from typing import Iterable, Dict, List, Any
+from datetime import datetime, timedelta
+from shutil import copy2
 
 async def start_blink():
     """
@@ -35,7 +37,7 @@ async def start_blink():
     """
     session = ClientSession()
     blink   = Blink(session=session)
-    blink.auth = Auth(await json_load(CREDFILE), session=session)
+    blink.auth = Auth(await json_load(Config.CREDFILE), session=session)
     await blink.start()
     return blink, session
 
@@ -63,9 +65,9 @@ async def capture_image(camera_name: str) -> Path:
     await asyncio.sleep(5)
     
     await blink.refresh(force=True)
-    path = Path(MEDIA_DIR)/camera_name
+    path = Path(Config.MEDIA_DIR)/camera_name
     path.mkdir(exist_ok=True, parents=True)
-    await camera.image_to_file(str(path/LAST_IMAGE_FILENAME))
+    await camera.image_to_file(str(path/Config.LAST_IMAGE_FILENAME))
     await session.close()
 
 async def download_clips(
@@ -103,7 +105,7 @@ async def download_clips(
     # expand “all” etc...
     results = {}
     for name in names:
-        path = Path(MEDIA_DIR)/name
+        path = Path(Config.MEDIA_DIR)/name
         path.mkdir(exist_ok=True, parents=True)
         before = {f.name for f in path.iterdir() if f.is_file()}
         # prepare common kwargs
@@ -119,6 +121,103 @@ async def download_clips(
         await blink.download_videos(str(path), **kwargs)
         after = {f.name for f in path.iterdir() if f.is_file()}
         results[name] = [str(path/f) for f in sorted(after - before)]
+
+    await session.close()
+    return results
+
+async def download_clips_index_and_sort(
+    names: Iterable[str],
+    since_iso: str
+) -> Dict[str, List[str]]:
+    """
+    Downloads new Blink clips into a central index, sorts into date folders,
+    and maintains a 'latest' folder based on time or count settings
+    since the given ISO8601 timestamp.
+
+    The /idx directory stores empty files that match the filename of a sorted
+    video file.
+
+    Includes a 2-second pause between each clip download to avoid overwhelming
+    the Blink service.
+
+    Args:
+        names (Iterable[str]):
+            An iterable of camera names to target, or a single element `"all"`
+            to download from every camera in the account.
+        since_iso (str):
+            An ISO8601-formatted timestamp (e.g. `"2025-06-01T12:00:00Z"`).  
+            Only clips created at or after this time will be fetched.
+
+    Returns:
+        Dict[str, List[str]]:
+            A mapping from each camera name (or `"all"`) to a list of filesystem
+            paths (as strings) of the clips that were just downloaded.  
+            Newly added files are those present after the call that were not
+            already in the /idx directory.
+
+    Raises:
+        HTTPException:
+            If Blink returns a 404 or other error when targeting a specific camera.
+    """
+    blink, session = await start_blink()
+    await blink.refresh()
+
+    base = Path(Config.MEDIA_DIR)
+    idx_path = base / "idx"
+    latest_path = base / "latest"
+    idx_path.mkdir(parents=True, exist_ok=True)
+    latest_path.mkdir(parents=True, exist_ok=True)
+
+    results: Dict[str, List[str]] = {}
+
+    for name in names:
+        cam_base = base / name if name != "all" else base
+        cam_base.mkdir(parents=True, exist_ok=True)
+
+        before = {f.name for f in idx_path.iterdir() if f.is_file()}
+        kwargs = {"since": since_iso, "delay": 2}
+        if name != "all":
+            kwargs["camera"] = name
+
+        await blink.download_videos(str(idx_path), **kwargs)
+
+        after = {f.name for f in idx_path.iterdir() if f.is_file()}
+        new_files = sorted(after - before)
+        results[name] = []
+
+        for fname in new_files:
+            src = idx_path / fname
+            mtime = datetime.fromtimestamp(src.stat().st_mtime)
+            target_folder = cam_base / str(mtime.year) / f"{mtime.month:02d}" / f"{mtime.day:02d}"
+            target_folder.mkdir(parents=True, exist_ok=True)
+
+            dst = target_folder / fname
+            src.rename(dst)
+            (idx_path / fname).touch()
+            results[name].append(str(dst))
+
+            # Copy to 'latest' folder
+            # Use copies instead of symlinks due to media servers like Plex not supporting them
+            copy_dst = latest_path / fname
+            copy2(dst, copy_dst)
+
+    # Prune 'latest' folder
+    files = sorted(
+        [f for f in latest_path.iterdir() if f.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+
+    if Config.RECENTS_HOURS > 0:
+        window = timedelta(hours=Config.RECENTS_HOURS)
+        cutoff = datetime.now() - window
+        for f in files:
+            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                f.unlink()
+    else:
+        for f in files[Config.RECENTS_TOTAL:]:
+            f.unlink()
+
     await session.close()
     return results
 
