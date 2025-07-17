@@ -27,4 +27,4 @@ ENV PORT=${PORT}
 EXPOSE ${PORT}
 
 # Use Gunicorn to serve the run entrypoint; bind to 0.0.0.0:${PORT}
-CMD ["gunicorn", "run:app", "-b", "0.0.0.0:5001", "--workers", "1", "--timeout", "120"]
+CMD ["gunicorn", "run:app", "-b", "0.0.0.0:5001", "--workers", "1", "--timeout", "240"]

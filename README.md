@@ -127,9 +127,16 @@ Trigger a snapshot and get the URL of the saved image.
   { "url": "https://static.example.com/Front Door/last.jpg" }
   ```
 
-#### POST `/download-recent-clips` and `/download-recent-clips-and-sort`
+#### POST `/download-recent-clips`, `/download-recent-clips-and-sort`, and `/download-recent-sync-clips-and-sort`
 
-Download clips from all or specified cameras since the last run. The `/download-recent-clips-and-sort` version sorts by year, month, and date using subholders. Additionally, the `path/to/media/latest` folder is updated with the most recent 20 videos.
+Download clips from all or specified cameras since the last run.
+
+The `/download-recent-clips-and-sort` and `/download-recent-sync-clips-and-sort` versions sorts by year, month, and date using subholders. Additionally, the `path/to/media/latest` folder is updated with the most recent 20 videos.
+
+The `/download-recent-sync-clips-and-sort` allows downloading from the sync module (when using a free Blink plan).
+
+> [!NOTE]
+> Downloading from the sync module tends to have greater latency. According to the BlinkPy docs: "the Blink app has to query the sync module for all information regarding the stored clips. On a click to view a clip, the app asks for the full list of stored clips, finds the clip in question, uploads the clip to the cloud, and then downloads the clip back from a cloud URL. Each interaction requires polling for the response since networking conditions are uncertain. The app also caches recent clips and the manifest."
 
 * **Payload** (optional)
 
@@ -151,9 +158,13 @@ Download clips from all or specified cameras since the last run. The `/download-
   }
   ```
 
-#### POST `/download-clips-since`
+#### POST `/download-clips-since`, `/download-clips-since-and-sort`, and `/download-sync-clips-since-and-sort`
 
-Download clips from all or specified cameras since a given ISO timestamp. The `/download-clips-since-and-sort` version sorts by year, month, and date using subholders. Additionally, the `path/to/media/latest` folder is updated with the most recent 20 videos.
+Download clips from all or specified cameras since a given ISO timestamp.
+
+The `/download-clips-since-and-sort` and `/download-sync-clips-since-and-sort` versions sorts by year, month, and date using subholders. Additionally, the `path/to/media/latest` folder is updated with the most recent 20 videos.
+
+The `/download-sync-clips-since-and-sort` allows downloading from the sync module (when using a free Blink plan).
 
 * **Payload**
 
