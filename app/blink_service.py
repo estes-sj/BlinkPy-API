@@ -3,7 +3,7 @@ from aiohttp import ClientSession
 from pathlib import Path
 from .config import Config
 from .helpers import get_since_iso
-from blinkpy.blinkpy import Blink
+from blinkpy.blinkpy import Blink, BlinkSyncModule
 from blinkpy.auth import Auth
 from blinkpy.helpers.util import json_load
 from typing import Iterable, Dict, List, Any
@@ -134,7 +134,7 @@ async def download_clips_index_and_sort(
     and maintains a 'latest' folder based on time or count settings
     since the given ISO8601 timestamp.
 
-    The /idx directory stores empty files that match the filename of a sorted
+    The /.idx directory stores empty files that match the filename of a sorted
     video file.
 
     Includes a 2-second pause between each clip download to avoid overwhelming
@@ -153,7 +153,7 @@ async def download_clips_index_and_sort(
             A mapping from each camera name (or `"all"`) to a list of filesystem
             paths (as strings) of the clips that were just downloaded.  
             Newly added files are those present after the call that were not
-            already in the /idx directory.
+            already in the /.idx directory.
 
     Raises:
         HTTPException:
@@ -163,7 +163,7 @@ async def download_clips_index_and_sort(
     await blink.refresh()
 
     base = Path(Config.MEDIA_DIR)
-    idx_path = base / "idx"
+    idx_path = base / ".idx"
     latest_path = base / "latest"
     idx_path.mkdir(parents=True, exist_ok=True)
     latest_path.mkdir(parents=True, exist_ok=True)
@@ -216,6 +216,125 @@ async def download_clips_index_and_sort(
                 f.unlink()
     else:
         for f in files[Config.RECENTS_TOTAL:]:
+            f.unlink()
+
+    await session.close()
+    return results
+
+async def download_sync_clips_index_and_sort(
+    names: Iterable[str],
+    since_iso: str
+) -> Dict[str, List[str]]:
+    """
+    Uses the Blink Sync Module API to download new clips into a central index,
+    sort them into date folders, and maintain a 'latest' folder based on
+    time or count settings since the given ISO8601 timestamp.
+
+    Args:
+        names: An iterable of camera names to target, or ['all'] to process every camera.
+        since_iso: An ISO8601 timestamp; only clips created at or after this time are fetched.
+
+    Returns:
+        A mapping from each camera name (or 'all') to a list of filesystem paths
+        of the clips that were just downloaded.
+    """
+    # Initialize blink session
+    blink, session = await start_blink()
+    await blink.start()
+    await blink.setup_post_verify()
+
+    # Use the network's first sync module
+    if not blink.sync:
+        raise RuntimeError("No Sync Modules found")
+    net_name = next(iter(blink.sync))
+    sync: BlinkSyncModule = blink.sync[net_name]
+
+    # Prepare folders
+    base        = Path(Config.MEDIA_DIR)/"sync"
+    idx_path    = base / ".idx"
+    latest_path = base / "latest"
+    idx_path.mkdir(parents=True, exist_ok=True)
+    latest_path.mkdir(parents=True, exist_ok=True)
+
+    results: Dict[str, List[str]] = {n: [] for n in names}
+
+    # Refresh sync module manifest until ready
+    sync._local_storage["manifest"].clear()
+    while True:
+        await sync.refresh()
+        if sync.local_storage_manifest_ready:
+            break
+        await asyncio.sleep(1)
+
+    # Filter the manifest of what to download
+    since_dt = datetime.fromisoformat(since_iso.replace("Z", "+00:00"))
+    manifest = sync._local_storage["manifest"]
+
+    for cam_name in names:
+        # Track existing index files to detect new ones
+        before = {p.name for p in idx_path.iterdir() if p.is_file()}
+
+        items = [
+            item for item in manifest
+            if item.created_at >= since_dt
+            and (cam_name == "all" or item.name == cam_name)
+        ]
+
+        # Download each clip
+        for item in items:
+            # Build filename and idx path
+            filename = f"{item.name}_{item.created_at.isoformat().replace(':','_')}.mp4"
+            idx_file = idx_path / filename
+
+            # Skip if we've already downloaded this clip
+            if idx_file.exists():
+                continue
+
+            await item.prepare_download(blink)
+            await item.download_video(blink, str(idx_file))
+
+            # Intentional throttle when working the API
+            await asyncio.sleep(2)
+
+        # Determine the new files
+        after    = {p.name for p in idx_path.iterdir() if p.is_file()}
+        new_files = sorted(after - before)
+
+        # Copy the file to the appropriate sorted folder
+        # and create the placeholder idx file
+        for fname in new_files:
+            src = idx_path / fname
+            mtime = datetime.fromtimestamp(src.stat().st_mtime)
+            datedir = base / (cam_name if cam_name!="all" else "") \
+                       / str(mtime.year) / f"{mtime.month:02d}" / f"{mtime.day:02d}"
+            datedir.mkdir(parents=True, exist_ok=True)
+
+            dst = datedir / fname
+            src.rename(dst)
+
+            # Touch to create an empty file with the file name
+            # (This acts as a placeholder in the unsorted directory)
+            (idx_path / fname).touch()
+
+            # Copy the new files into latest
+            copy2(dst, latest_path / fname)
+
+            results[cam_name].append(str(dst))
+
+    # Prune the /latest folder using RECENTS_HOURS or RECENTS_TOTAL
+    all_latest = sorted(
+        [f for f in latest_path.iterdir() if f.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+
+    if Config.RECENTS_HOURS > 0:
+        cutoff = datetime.now() - timedelta(hours=Config.RECENTS_HOURS)
+        for f in all_latest:
+            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                f.unlink()
+    else:
+        for f in all_latest[Config.RECENTS_TOTAL:]:
             f.unlink()
 
     await session.close()
