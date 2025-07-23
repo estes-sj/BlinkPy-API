@@ -250,7 +250,7 @@ async def download_sync_clips_index_and_sort(
     sync: BlinkSyncModule = blink.sync[net_name]
 
     # Prepare folders
-    base        = Path(Config.MEDIA_DIR)/"sync"
+    base        = Path(Config.MEDIA_DIR)
     idx_path    = base / ".idx"
     latest_path = base / "latest"
     idx_path.mkdir(parents=True, exist_ok=True)
