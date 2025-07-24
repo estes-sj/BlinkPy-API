@@ -2,13 +2,14 @@
 
 A lightweight Flask microservice that provides endpoints for interacting with Blink cameras using [blinkpy](https://github.com/fronzbot/blinkpy). List cameras, capture snapshots, and download recent or past clips via simple HTTP requests.
 
+Ideal for automatically storing videos on a local server, offering more explicit control and faster responsiveness with the Blink API compared to Home Assistant integrations.
 
 ## Features
 
-* **List Cameras**: Retrieve available Blink camera names.
+* **List Cameras**: Retrieve available Blink camera names and their attributes.
 * **Snapshot Capture**: Trigger a snapshot on any camera and get a public URL to the image.
-* **Recent Clips**: Download clips since the the specified delta (last 6 hours as default).
-* **Clips Since Timestamp**: Download clips since any provided ISO timestamp.
+* **Recent Clips**: Download clips since the the specified delta (last 6 hours as default) from the Blink cloud or local Sync Module.
+* **Clips Since Timestamp**: Download clips since any provided ISO timestamp from the Blink cloud or local Sync Module.
 * **Home Assistant Support**: Utilize endpoints for Home Assistant automations and scripts.
 * **Plex**: Organize clips for viewing by media servers like Plex.
 
