@@ -15,41 +15,55 @@ Ideal for automatically storing videos on a local server, offering more explicit
 
 ## Installation
 
-Can setup via docker or a virtual environment. But first:
+You can run the Blink API either via **Docker Compose** or in a **Python virtual environment**. Before you begin, clone the repo and create your `.env` file.
 
-1. **Clone the repository**
-
+1. **Clone the repository**  
    ```bash
    git clone https://github.com/your-org/BlinkPy-API.git
    cd BlinkPy-API
    ```
 
-2. **Configure environment**
+2. **Create and populate your environment file**
+   Copy the example and fill in your Blink credentials and any overrides:
 
-   * Copy `example-credentials.json` to `credentials.json` and fill in your Blink credentials.
-
-   ```json
-    {
-        "username": "your_blink_account_username",
-        "password": "your_blink_account_password"
-    }
+   ```bash
+   cp env.example .env
    ```
+
+   Edit `.env` and set at minimum:
+
+   ```dotenv
+   USERNAME=your_blink_username
+   PASSWORD=your_blink_password
+   ```
+   See [Environment Variables](#environment-variables) for additional optional variables.
 
 ### Via Docker Compose
 
-1. **Configure the `docker-compse.yaml`**
+1. **Review `docker-compose.yml`**
 
-   * Adjust any settings such as the path to where you want media stored, the port number used, or the timeszone.
+   * By default it mounts:
 
-2. **Run via docker**
+     * `./credentials.json` → `/app/credentials.json`
+     * `./media`           → `/app/media`
+   * It also loads `./.env` for all other config variables.
+
+2. **Build & start**
 
    ```bash
    docker compose up -d --build
    ```
 
-### Via Virtual Environment
+3. **Logs & status**
 
-1. **Create a virtual environment**
+   ```bash
+   docker compose logs -f blink-api
+   docker compose ps
+   ```
+
+### Via Python Virtual Environment
+
+1. **Create & activate venv**
 
    ```bash
    python3 -m venv venv
@@ -59,19 +73,36 @@ Can setup via docker or a virtual environment. But first:
 2. **Install dependencies**
 
    ```bash
-   pip install -r requirements.txt
+   pip install --no-cache-dir -r requirements.txt
    ```
 
-## Usage
+3. **Run the service**
+   The Flask app reads your `.env` automatically (via python-dotenv if installed):
 
-Run the Flask app:
+   ```bash
+   export FLASK_APP=api.app
+   flask run --host 0.0.0.0 --port 5001
+   ```
 
-```bash
-export FLASK_APP=api.app
-flask run --host 0.0.0.0 --port 5001
-```
+   By default it will be available at [http://0.0.0.0:5001](http://0.0.0.0:5001).
 
-By default the service listens on **[http://0.0.0.0:5001](http://0.0.0.0:5001)**.
+
+> [!NOTE]
+> - If a `credentials.json` file doesn’t exist (or is missing username/password), the app will fall back to `USERNAME`/`PASSWORD` from `.env` and **auto-generate** `credentials.json` on first successful login.
+> - To change look-back windows or total-keep limits, tweak `TIMEDELTA_HOURS`, `RECENTS_HOURS`, and `RECENTS_TOTAL` in your `.env`.
+> - Make sure your host machine’s timezone matches the `TZ` you set in Docker Compose (default `America/New_York`).
+
+### Environment Variables
+Below is a table of all the support environment variables that can be set in the `.env`:
+
+| Variable              | Default Value             | Description                                                                               |
+| --------------------- | ------------------------- | ----------------------------------------------------------------------------------------- |
+| `USERNAME`            | `your_blink_username`     | Your Blink account username (email)                                       |
+| `PASSWORD`            | `Suffrage-Siren-Citadel3` | Your Blink account password                                                               |
+| `LAST_IMAGE_FILENAME` | `last_snap.jpg`           | Filename to store the most recent snapshot image                                          |
+| `TIMEDELTA_HOURS`     | `6`                       | How many past hours to look back for new media (e.g., `6` = last 6 hours). Note that the Blink service appears to only handle 6 hour increments.                 |
+| `RECENTS_HOURS`       | `0`                       | If > 0, only include videos within the last X hours; if `0`, uses `RECENTS_TOTAL` instead |
+| `RECENTS_TOTAL`       | `20`                      | Max number of videos to keep in the “latest” folder when `RECENTS_HOURS` is `0`           |
 
 ### Endpoints
 
