@@ -1,22 +1,28 @@
 import asyncio
-from aiohttp import ClientSession
+import json
+import os
+from datetime import datetime, timedelta
+from json import JSONDecodeError
 from pathlib import Path
+from shutil import copy2
+from typing import Any, Dict, Iterable, List, Tuple
+
+from aiohttp import ClientSession
+from blinkpy.auth import Auth
+from blinkpy.blinkpy import Blink, BlinkSyncModule
+from blinkpy.helpers.util import json_load
+
 from .config import Config
 from .helpers import get_since_iso
-from blinkpy.blinkpy import Blink, BlinkSyncModule
-from blinkpy.auth import Auth
-from blinkpy.helpers.util import json_load
-from typing import Iterable, Dict, List, Any
-from datetime import datetime, timedelta
-from shutil import copy2
 
-async def start_blink():
+async def start_blink() -> Tuple[Blink, ClientSession]:
     """
-    Initializes and starts a Blink session using credentials from disk.
+    Initializes and starts a Blink session using credentials from disk
+    (CREDFILE), falling back to USERNAME / PASSWORD env vars if needed.
 
     This function:
       1. Creates an aiohttp ClientSession.
-      2. Loads credentials from the configured CREDFILE.
+      2. Loads credentials from the configured CREDFILE (or creates it).
       3. Authenticates and starts the Blink object.
       4. Returns both the Blink instance and the underlying HTTP session.
 
@@ -24,17 +30,32 @@ async def start_blink():
         Tuple[Blink, ClientSession]:
             - The authenticated Blink client, ready for API calls.
             - The aiohttp ClientSession used by Blink (needed for cleanup).
-
-    Raises:
-        FileNotFoundError:
-            If the credentials file cannot be found or opened.
-        JSONDecodeError:
-            If the credentials file is not valid JSON.
-        BlinkAuthError:
-            If authentication with Blink fails.
-        BlinkLoginError:
-            If starting the Blink session fails for other reasons.
     """
+    cred_path = Path(Config.CREDFILE)
+    creds = {}
+
+    # Try to read existing credentials file
+    try:
+        raw = cred_path.read_text()
+        creds = json.loads(raw) or {}
+    except (FileNotFoundError, JSONDecodeError):
+        creds = {}
+
+    # Check for required fields
+    username = creds.get("username")
+    password = creds.get("password")
+    if not username or not password:
+        username = os.getenv("USERNAME")
+        password = os.getenv("PASSWORD")
+        if not username or not password:
+            raise FileNotFoundError(
+                f"No valid credentials in {cred_path} and "
+                "USERNAME/PASSWORD env vars are not set."
+            )
+        creds = {"username": username, "password": password}
+        cred_path.write_text(json.dumps(creds, indent=2))
+
+    # Create Blink session
     session = ClientSession()
     blink   = Blink(session=session)
     blink.auth = Auth(await json_load(Config.CREDFILE), session=session)
