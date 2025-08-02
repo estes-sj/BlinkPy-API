@@ -88,9 +88,9 @@ You can run the Blink API either via **Docker Compose** or in a **Python virtual
 
 
 > [!NOTE]
-> If a `credentials.json` file doesn’t exist (or is missing username/password), the app will fall back to `USERNAME`/`PASSWORD` from `.env` and **auto-generate** `credentials.json` on first successful login.
-> To change look-back windows or total-keep limits, tweak `TIMEDELTA_HOURS`, `RECENTS_HOURS`, and `RECENTS_TOTAL` in your `.env`.
-> Make sure your host machine’s timezone matches the `TZ` you set in Docker Compose (default `America/New_York`).
+> - If a `credentials.json` file doesn’t exist (or is missing username/password), the app will fall back to `USERNAME`/`PASSWORD` from `.env` and **auto-generate** `credentials.json` on first successful login.
+> - To change look-back windows or total-keep limits, tweak `TIMEDELTA_HOURS`, `RECENTS_HOURS`, and `RECENTS_TOTAL` in your `.env`.
+> - Make sure your host machine’s timezone matches the `TZ` you set in Docker Compose (default `America/New_York`).
 
 ### Environment Variables
 Below is a table of all the support environment variables that can be set in the `.env`:
